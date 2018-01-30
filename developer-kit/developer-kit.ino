@@ -19,7 +19,8 @@ void setup() {
   SERIAL_USB.write("] - Set wakeup low\n");
   SERIAL_USB.write("[ - Set wakeup high\n");
 
-  // RS485 will be removed in the future, to reduce power usage
+  // RS485 might eventually be supported on certain boards only, to reduce
+  // power consumption.
   pinMode(PIN_SELECT_RS485, OUTPUT);
   pinMode(PIN_WAKEUP0, OUTPUT);
   digitalWrite(PIN_SELECT_RS485, LOW);
