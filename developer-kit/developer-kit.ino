@@ -6,6 +6,7 @@
 
 #define PIN_WAKEUP0 31
 #define PIN_SELECT_RS485 33
+#define PIN_WKUP_LED 35
 
 #define STR_FAIL "Tests FAILED"
 #define STR_PASS "Tests PASSED"
@@ -23,8 +24,10 @@ void setup() {
   // power consumption.
   pinMode(PIN_SELECT_RS485, OUTPUT);
   pinMode(PIN_WAKEUP0, OUTPUT);
+  pinMode(PIN_WKUP_LED, OUTPUT);
   digitalWrite(PIN_SELECT_RS485, LOW);
   digitalWrite(PIN_WAKEUP0, HIGH);
+  digitalWrite(PIN_WKUP_LED, HIGH);
 }
 
 String readln(Stream *stream);
@@ -33,11 +36,11 @@ void loop() {
   char x = 0;
   while ((x = SERIAL_HIBER.read()) != -1) SERIAL_USB.write(x);
   while ((x = SERIAL_USB.read()) != -1) {
-    if (x == ']') {
+    if (x == '[') {
       SERIAL_USB.write("Wakeup high\r\n");
       SetWakeupHigh(true);
     }
-    else if (x == '[') {
+    else if (x == ']') {
       SetWakeupHigh(false);
       SERIAL_USB.write("Wakeup low\r\n");
     }
@@ -57,6 +60,7 @@ void DebugString(String str) {
 
 void SetWakeupHigh(bool high) {
   digitalWrite(PIN_WAKEUP0, high ? HIGH : LOW);
+  digitalWrite(PIN_WKUP_LED, high ? HIGH : LOW);
 }
 
 bool testBool(bool expected, String name, bool result) {
