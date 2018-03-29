@@ -17,8 +17,9 @@ void setup() {
   SERIAL_HIBER.begin(19200);
   SERIAL_USB.begin(19200);
   SERIAL_USB.write("[API]\n");
-  SERIAL_USB.write("] - Set wakeup low\n");
-  SERIAL_USB.write("[ - Set wakeup high\n");
+  SERIAL_USB.write("] - Set WKUP low\n");
+  SERIAL_USB.write("[ - Set WKUP high\n");
+  SERIAL_USB.write("& - Enter Hiber LPGAN modem test mode\n");
 
   // RS485 might eventually be supported on certain boards only, to reduce
   // power consumption.
