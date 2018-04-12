@@ -1,6 +1,11 @@
+// This file includes some functionality of the Hiber modem API,
+// that can be used as an example when implementing additional
+// API calls.
+
 #include "Hiber.h"
 
-
+// Upload a payload to the modem, to be transmitted to
+// the Hiber satellite in the next satellite pass.
 bool Hiber::prepareBroadcast(byte data[], int data_len)
 {
   sendCommandName("set_payload");
@@ -11,28 +16,22 @@ bool Hiber::prepareBroadcast(byte data[], int data_len)
   int code = readResponse();
 
   if (code == RESPONSE_OK) {
-    // delay(00);
-    // Write the data...
-    //Serial.write("> ", 2);
-    //Serial.write(data, data_len);
-    //Serial.write("\r\n", 2);
-    for (int i = 0; i < data_len; i++) {
-      delay(100);
-      serial_port->write(data[i]);
-    }
-    //serial_port->write(data, data_len);
+    // Now, we should write the amount of bytes that we said
+    // we would write...
+    serial_port->write(data, data_len);
     serial_port->flush();
     
     code = readResponse();
   }
 
   if (code != RESPONSE_OK) {
-    
       return false;
   }
   return true;
 }
 
+// Send an NMEA 0183 string to the modem
+// Returns true if the content was valid
 bool Hiber::sendNMEA(String nmea_command)
 {
   sendCommandName("run_nmea");
@@ -43,6 +42,7 @@ bool Hiber::sendNMEA(String nmea_command)
   return code == RESPONSE_OK;
 }
 
+// Request next wakeup 'reason' (and seconds left) from the modem
 bool Hiber::getNextWakeupTime(int *reason, int *seconds_left)
 {
   sendCommandName("get_next_wakeup_time");
@@ -61,6 +61,7 @@ bool Hiber::getNextWakeupTime(int *reason, int *seconds_left)
   return true;
 }
 
+// Request the date and time that the modem currently holds
 bool Hiber::getDateTime(String *iso8601DateTime)
 {
   sendCommandName("get_datetime");
@@ -78,6 +79,8 @@ bool Hiber::getDateTime(String *iso8601DateTime)
   return true;
 }
 
+// Change the date and time of the modem
+// Might not be available when the GPS is enabled.
 bool Hiber::setDateTime(String iso8601DateTime)
 {
   sendCommandName("set_datetime");
@@ -93,6 +96,8 @@ bool Hiber::setDateTime(String iso8601DateTime)
   return true;
 }
 
+// Enable or disable the GPS. Certain functionality
+// is not available when the GPS is enabled.
 bool Hiber::setGPSMode(bool enabled)
 {
   sendCommandName("set_gps_mode");
@@ -108,6 +113,9 @@ bool Hiber::setGPSMode(bool enabled)
   return true;
 }
 
+// Set the modem location in the world.
+// The more precise these values are, the better the reception will be.
+// Might not be available when the GPS is enabled.
 bool Hiber::setLocation(float latitude, float longitude, float altitude)
 {
   sendCommandName("set_location");
@@ -125,6 +133,10 @@ bool Hiber::setLocation(float latitude, float longitude, float altitude)
   return true;
 }
 
+// Requests a GPS fix on the modem. Will enqueue the request
+// and handle it in the background. You can put the wakeup pin
+// low and the modem will automatically go back to sleep when
+// either a fix or a timeout occurred.
 bool Hiber::doGPSFix()
 {
   sendCommandName("do_gps_fix");
@@ -133,6 +145,9 @@ bool Hiber::doGPSFix()
   return readResponse() == RESPONSE_OK;
 }
 
+// Try to make the modem go to sleep.
+// It is recommended to call this after the modem has been 
+// woken up through the wakeup pin.
 bool Hiber::goToSleep(GoToSleepResult *result, int *reason, int *seconds_left)
 {
   sendCommandName("go_to_sleep");

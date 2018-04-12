@@ -1,25 +1,52 @@
+// This file mainly handles the Hiber modem API input
+// and output. The argument building code should provide
+// a save way for the user to send content, as it
+// automatically escapes characters that would
+// otherwise be invalid.
+
 #include "Hiber.h"
 
-static bool debug_io = true;
+static bool debug_io = false;
+static Stream* debug_port = NULL;
+
+void setDebugSerial(Stream* port)
+{
+  debug_port = port;
+}
+
+void toggleDebugIO(bool enabled)
+{
+  debug_io = enabled;
+}
+
+String getHex(char x)
+{
+  String ret = String(x, HEX);
+  if (x < 0x10) ret = "0" + ret;
+  return ret;
+}
 
 String readln(Stream *stream)
 {
   String tmp = "";
+  tmp.reserve(20);
   char prev = 0;
   unsigned long start_time = millis();
   
-  if (debug_io) Serial.write("< ");
+  if (debug_io) ::writeString(debug_port, "< ");
   
   while (true) {
     char cur = stream->read();
     if (cur == -1) {
       // Detect timeout
       if ((millis() - start_time) >= 7000) {
-        return "";
+        ::writeString(debug_port, "timeout\r\n");
+        return tmp;
       }
       continue;
     }
-    if (debug_io) Serial.write(cur);
+    
+    if (debug_io) debug_port->print(getHex(cur));
 
     if (prev == '\r') {
       if (cur == '\n') {
@@ -36,34 +63,39 @@ String readln(Stream *stream)
   return tmp;
 }
 
+// This function will write a String to a Stream,
+// byte-for-byte, and then flushes it.
 void writeString(Stream *stream, String value)
 {
-  int length = value.length();
-  for (int i = 0; i < length; i++) {
-    char c = value[i];
-    stream->write(c);
+  if (stream == nullptr) {
+    // Lets not try to access a null pointer
+    return;
   }
+  stream->print(value);
+  stream->flush();
 }
 
 void Hiber::writeString(String value)
 {
-  if (debug_io) ::writeString(&Serial, "> " + value);
+  if (debug_io) ::writeString(debug_port, "> " + value);
   ::writeString(serial_port, value);
-  serial_port->flush();
 }
 
 Hiber::Hiber(Stream *serial_port)
 {
-    this->serial_port = serial_port;
-    this->command_with_arguments = false;
+  this->serial_port = serial_port;
+  this->command_with_arguments = false;
 }
 
+// This function replaces the current command buffer
+// with 'command' as its only contents
 void Hiber::sendCommandName(String command)
 {
-  last_command = "";
-  last_command += command;
+  last_command = command;
 }
 
+// This function will either add '(' or ',', depending
+// on whether an argument was already started
 void Hiber::sendArgumentStart()
 {
   if (!command_with_arguments) {
@@ -125,6 +157,7 @@ void Hiber::sendArgumentInt(int value, bool hex)
   if (hex) {
     last_command += "0x";
   }
+
   last_command += characters;
 }
 
@@ -141,7 +174,7 @@ void Hiber::sendArgumentFloat(float value)
   sendArgumentString(characters);
 }
 
-String parseStringArgument(String str, int *nextOffset, bool *valid)
+static String parseStringArgument(String str, int *nextOffset, bool *valid)
 {
   if (str[0] != '"') {
     // Ehm...
@@ -149,6 +182,7 @@ String parseStringArgument(String str, int *nextOffset, bool *valid)
     *valid = false;
     return "";
   }
+
   int nextQuote;
   int nextQuoteMinOffset = 1;
 
@@ -156,7 +190,7 @@ String parseStringArgument(String str, int *nextOffset, bool *valid)
     nextQuote = str.indexOf('"', nextQuoteMinOffset);
 
     if (nextQuote == -1) {
-      // What the heck.
+      // Invalid contents
       *nextOffset = -1;
       *valid = false;
       return "";
@@ -195,17 +229,23 @@ short Hiber::parseResponse(String response, String arguments[], int max_argument
   if (response.length() < 7) {
     return INVALID_RESPONSE_TOO_SHORT;
   }
+  
+  if (debug_io) ::writeString(debug_port, "+> " + response);
 
+  // Just make sure we begin at a valid API(, in case of
+  // random stuff in front of it.
   int apiStartIndexOf = response.indexOf("API(");
   if (apiStartIndexOf != -1) {
     response = response.substring(apiStartIndexOf);
   }
   
+  if (debug_io) ::writeString(debug_port, " ..   " + response + " <+\r\n");
+  
   if (response.startsWith("API(")) {
     String codeStr = response.substring(4, 7);
     short code = (short)codeStr.toInt();
     int arg_count = 0;
-    
+
     if (response[7] == ':' && max_argument_count > 0) {
       // We've got a reponse with arguments: API(123: foo; 1; "bar")
       String args = response.substring(3 + 1 + 3 + 2); // skip API(123:
@@ -226,7 +266,7 @@ short Hiber::parseResponse(String response, String arguments[], int max_argument
         }
 
         if (args[0] == '"') {
-          ::writeString(&Serial, "Reading string\r\n");
+          if (debug_io) ::writeString(debug_port, "Reading string\r\n");
           int nextOffset = 0;
           bool valid = false;
           String argument = parseStringArgument(args, &nextOffset, &valid);
@@ -256,8 +296,8 @@ short Hiber::parseResponse(String response, String arguments[], int max_argument
 
     return code;
   }
-  else if (response.startsWith("Hiber Space API (")) {
-    char commitHash[20];
+  else if (response.startsWith("Hiber API (")) {
+    char commitHash[50];
     
     int results = sscanf(response.c_str(), "Hiber API (Build %s @", &commitHash);
 
@@ -266,28 +306,29 @@ short Hiber::parseResponse(String response, String arguments[], int max_argument
       String rest = response.substring(response.indexOf("@") + 2);
       String buildDate = rest.substring(0, rest.indexOf(')'));
       
-      ::writeString(&Serial, "Booted, " + String(commitHash) + " " + buildDate + "\r\n");
+      ::writeString(debug_port, "Booted, " + String(commitHash) + " build at " + buildDate + "\r\n");
 
       return INVALID_RESPONSE_DEVICE_JUST_BOOTED;
     }
     else {
-      ::writeString(&Serial, "Error\r\n");
+      if (debug_io) ::writeString(debug_port, "Error\r\n");
     }
   }
   return INVALID_RESPONSE_NO_BEGIN;
 }
 
-
+// Read and parse a response from the Hiber modem
 short Hiber::readResponse(String arguments[], int max_argument_count, int *argument_count)
 {
   String str = readln(serial_port);
   previous_response = str;
-  if (debug_io)  ::writeString(&Serial, "Input: " + previous_response + "\r\n");
+
+  if (debug_io) ::writeString(debug_port, "Input: " + previous_response + "\r\n");
 
   short code = parseResponse(previous_response, arguments, max_argument_count, argument_count);
   
   if (code == INVALID_RESPONSE_DEVICE_JUST_BOOTED && last_command.length() != 0) {
-    if (debug_io) ::writeString(&Serial, "Retrying...\r\n");
+    if (debug_io) ::writeString(debug_port, "Retrying...\r\n");
     writeString(last_command);
     
     str = readln(serial_port);

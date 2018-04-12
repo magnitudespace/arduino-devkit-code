@@ -1,8 +1,9 @@
-#ifndef HIBER_H
-#define HIBER_H
+#pragma once
 
 #include <Arduino.h>
 
+// This is the maximum amount of bytes you 
+// send through the modem
 #define HIBER_MAX_DATA_LEN (144)
 
 class Hiber {
@@ -45,7 +46,7 @@ public:
 
   Hiber(Stream *serial_port);
 
-  // Actual commands
+  // Actual commands. You can find the declarations inside HiberCalls.cpp
   bool prepareBroadcast(byte data[], int data_len);
   bool sendNMEA(String nmea_command);
   bool getNextWakeupTime(int *reason, int *seconds_left);
@@ -64,7 +65,7 @@ public:
   void sendArgumentInt(int value, bool hex = false);
   void sendArgumentBool(bool value);
   void sendArgumentFloat(float value);
-  
+
   // Only returns the response code. If you still need 
   // the response text (unparsed), call getResponseText()
   short readResponse() {
@@ -92,15 +93,18 @@ private:
   void writeString(String value);
 
   Stream *serial_port;
-  Stream *debug_port;
   bool command_with_arguments;
   String previous_response;
   short previous_response_code;
   String last_command;
+  
 };
 
 void writeString(Stream *stream, String value);
 String readln(Stream *stream);
 
-#endif
 
+// Debug IO between the Arduino and the Hiber modem
+void setDebugSerial(Stream* stream);
+void toggleDebugIO(bool enable);
+  
