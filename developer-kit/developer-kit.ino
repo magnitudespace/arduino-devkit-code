@@ -17,9 +17,6 @@
 #define PIN_LED_DBG_TXD 43
 #define PIN_LED_DBG_RXD 45
 
-#define STR_FAIL "Tests FAILED"
-#define STR_PASS "Tests PASSED"
-
 Hiber hiber(&SERIAL_HIBER);
 
 /*
@@ -60,7 +57,6 @@ void setup() {
   PrintString("[API]");
   PrintString("] - Set WKUP low");
   PrintString("[ - Set WKUP high");
-  PrintString("& - Enter Hiber LPGAN modem test cycle");
 
   // RS485 might eventually be supported on certain boards only, to reduce
   // power consumption.
@@ -132,9 +128,6 @@ void loop() {
       SetWakeupHigh(false);
       PrintString("Wakeup low\r\n");
     }
-    else if (x == '&') {
-      Test();
-    }
     else {
       SERIAL_HIBER.write(x);
       SERIAL_USB.write(x);
@@ -154,134 +147,6 @@ void PrintString(String str) {
 void SetWakeupHigh(bool high) {
   digitalWrite(PIN_WAKEUP0, high ? HIGH : LOW);
   digitalWrite(PIN_WKUP_LED, high ? HIGH : LOW);
-}
-
-bool testBool(bool expected, String name, bool result) {
-  PrintString(name + " " + String(result ? "YES" : "NO") + ", expected " + String(expected ? "YES" : "NO"));
-  if (result != expected) {
-    PrintString(STR_FAIL);
-    // Reset chip
-    wdt_enable(WDTO_30MS);
-    while(1) {}
-  }
-  return result;
-}
-
-bool DidModemGoToSleep(Hiber::GoToSleepResult result)
-{
-  switch (result) {
-    case Hiber::GTSR_WAKEUP0_HIGH: 
-      PrintString("Did not start to sleep. Wakeup0 is high.");
-      return false;
-    case Hiber::GTSR_OK:
-      PrintString("Sleeping works. Wakeup through pin.");
-      return true;
-    case Hiber::GTSR_OK_ONLY_WKUP0:
-      PrintString("Sleeping works, but can only wakeup through wakeup pin.");
-      return true;
-    case Hiber::GTSR_ERROR:
-      PrintString("Unhandled error!");
-      testBool(true, "Unhandled error!", false);
-      return false;
-    default:
-      PrintString("-- SERIOUS ERROR --");
-      testBool(true, "Sleep result was odd: " + result, false);
-      return false;
-  }
-}
-
-void Test() {
-  SetWakeupHigh(true);
-
-  PrintString("Doing stuff");
-
-  bool prep1 = testBool(true, "Does prepareBroadcast work?", hiber.prepareBroadcast((byte*)"testmsg", 6)) == true;
-
-  {
-    // Inside a block, so we don't fill up the stack while doing the other tests
-    byte buffer[HIBER_MAX_DATA_LEN];
-    for (int i = 0; i < sizeof(buffer); i++) {
-      buffer[i] = i % 255;
-    }
-
-    prep1 = testBool(true, "Does a big prepareBroadcast work?", hiber.prepareBroadcast(buffer, sizeof(buffer))) == true;
-  }
-
-  String iso8601DateTime;
-  bool gdt1 = testBool(true, "Does getDateTime work?", hiber.getDateTime(&iso8601DateTime)) == true;
-  PrintString("Resulted datetime: " + iso8601DateTime);
-
-  // Wakeup pin is high, so check for that
-  Hiber::GoToSleepResult sleepResult;
-  hiber.goToSleep(&sleepResult, nullptr, nullptr);
-
-  bool sleep1 = !DidModemGoToSleep(sleepResult) && sleepResult == Hiber::GTSR_WAKEUP0_HIGH;
-
-  bool step1_correct = prep1 && sleep1 && gdt1;
-  testBool(true, "Step 1 correct?", step1_correct);
-  
-
-  // Step 2: set_gps_mode should toggle set_datetime and set_location
-  bool gps1 = testBool(true, "Does set_gps_mode(false) work?", hiber.setGPSMode(false)) == true;
-
-  bool sdt1 = testBool(true, "Does set_datetime('2017-05-01T16:30:22Z') work?", hiber.setDateTime("2017-05-01T16:30:22Z")) == true;
-  bool sl1 = testBool(true, "Does set_location() work?", hiber.setLocation(51.1234, 5.2133, 0)) == true;
-  bool rn1 = testBool(true, "Does run_nmea() work?", hiber.sendNMEA("$GPGSV,4,3,15,14,35,307,,22,35,012,,12,26,199,,18,21,240,*72\r\n")) == true;
-
-  bool step2_correct = gps1 && sdt1 && sl1 && rn1;
-  testBool(true, "Step 2 correct?", step2_correct);
-  
-  
-  // Step 3: Enable GPS mode, set_datetime and set_location should fail
-  
-  bool gps2 = testBool(true, "Does set_gps_mode(true) work?", hiber.setGPSMode(true));
-
-  bool sdt2 = testBool(false, "Does set_datetime('2017-05-01T16:30:22Z') work?", hiber.setDateTime("2017-05-01T16:30:22Z")) == false;
-  bool sl2 = testBool(false, "Does set_location() work?", hiber.setLocation(51.1234, 5.2133, 0)) == false;
-  bool rn2 = testBool(false, "Does run_nmea() work?", hiber.sendNMEA("$GPGSV,4,3,15,14,35,307,,22,35,012,,12,26,199,,18,21,240,*72\r\n")) == false;
-
-  bool step3_correct = gps2 && sdt2 && sl2 && rn2;
-  testBool(true, "Step 3 correct?", step3_correct);
-
-  // Step 4: Check sleep mode
-  
-  SetWakeupHigh(false);
-  hiber.goToSleep(&sleepResult, nullptr, nullptr);
-
-  bool sleep2 = DidModemGoToSleep(sleepResult) && sleepResult == Hiber::GTSR_OK;
-  
-  PrintString("Waking up...");
-
-  SetWakeupHigh(true);
-  for (int i = 0; i < 3; i++) {
-    String startupString = readln(&SERIAL_HIBER);
-    PrintString("Response: " + startupString);
-    String tmp[0];
-    int arg_count;
-    if (hiber.parseResponse(startupString, tmp, 0, &arg_count) == Hiber::INVALID_RESPONSE_DEVICE_JUST_BOOTED) {
-      break;
-    }
-  }
-
-  bool gps3 = testBool(true, "Does set_gps_mode(false) work?", hiber.setGPSMode(false));
-  
-  SetWakeupHigh(false);
-  hiber.goToSleep(&sleepResult, nullptr, nullptr);
-
-  bool sleep3 = DidModemGoToSleep(sleepResult) && sleepResult == Hiber::GTSR_OK_ONLY_WKUP0;
-
-  bool step4_correct = sleep2 && gps3 && sleep3;
-  testBool(true, "Step 4 correct?", step4_correct);
-
-  if (step1_correct && step2_correct && step3_correct && step4_correct) {
-    PrintString(STR_PASS);
-  }
-  else {
-    PrintString(STR_FAIL);
-  }
-  
-  // Boot the chip again
-  SetWakeupHigh(true);
 }
 
 int getPinForSerial(Stream* eventSerial)
