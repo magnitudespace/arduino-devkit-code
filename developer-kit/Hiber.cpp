@@ -46,8 +46,7 @@ String readln(Stream *stream)
   if (debug_io) ::writeString(debug_port, "< ");
   
   while (true) {
-    char cur = stream->read();
-    if (cur == -1) {
+        if (!stream->available()) {
       // Detect timeout
       if ((millis() - start_time) >= 7000) {
         ::writeString(debug_port, "timeout\r\n");
@@ -55,8 +54,11 @@ String readln(Stream *stream)
       }
       continue;
     }
-    
-    if (debug_io) debug_port->print(getHex(cur));
+        else {
+            char cur = stream->read();
+            if (debug_io) {
+                //debug_port->print(getHex(cur));
+            }
 
     if (prev == '\r') {
       if (cur == '\n') {
@@ -69,6 +71,7 @@ String readln(Stream *stream)
 
     prev = cur;
   }
+    }
 
   return tmp;
 }
