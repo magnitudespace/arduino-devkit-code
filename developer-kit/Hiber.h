@@ -47,15 +47,20 @@ public:
   Hiber(Stream *serial_port);
 
   // Actual commands. You can find the declarations inside HiberCalls.cpp
-  bool prepareBroadcast(byte data[], int data_len);
-  bool sendNMEA(String nmea_command);
-  bool getNextWakeupTime(int *reason, int *seconds_left);
-  bool getDateTime(String *iso8601DateTime);
-  bool setDateTime(String iso8601DateTime);
   bool setGPSMode(bool enabled);
-  bool setLocation(float latitude, float longitude, float altitude);
   bool doGPSFix();
+    bool getFirmwareVersion(String *firmware_version);
+    bool getModemInfo(String *HW_type_str, int *HW_type_int, int *FW_version, String *modem_no_str, int *modem_no_int);
+    bool setModemNumber(String modem_number);
+    bool getLocation(float *latitude, float *longitude, long *seconds_since_last_fix, long *seconds_to_next_fix, float *altitude);
+    bool setLocation(float latitude, float longitude, float altitude);
+    bool getDateTime(String *iso8601_date_time);
+    bool setDateTime(String iso8601_date_time);
+    bool setPayload(byte data[], int data_len);
+    bool getNextAlarm(int *reason, int *seconds_left);
+    bool getNextPass(long *seconds_left);
   bool goToSleep(GoToSleepResult *result, int *reason, int *seconds_left);
+    bool togglePayloadOverDebug(bool enabled);
 
   // Functionality for building commands
   void sendCommandName(String command);
