@@ -339,7 +339,15 @@ short Hiber::readResponse(String arguments[], int max_argument_count, int *argum
   short code = parseResponse(previous_response, arguments, max_argument_count, argument_count);
   
   if (code == INVALID_RESPONSE_DEVICE_JUST_BOOTED && last_command.length() != 0) {
-    if (debug_io) ::writeString(debug_port, "Retrying...\r\n");
+        if (debug_io) ::writeString(debug_port, "Trying to read next line...\r\n");
+        
+        str = readln(serial_port);
+        previous_response = str;
+
+        code = parseResponse(previous_response, arguments, max_argument_count, argument_count);
+
+        if (code != RESPONSE_OK) {
+            if (debug_io) ::writeString(debug_port, "Retrying command...\r\n");
     writeString(last_command);
     
     str = readln(serial_port);
