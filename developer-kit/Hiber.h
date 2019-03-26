@@ -102,7 +102,7 @@ private:
 
 void writeString(Stream *stream, String value);
 String readln(Stream *stream);
-
+void flushInput(Stream *stream, Stream *debug);
 
 // Debug IO between the Arduino and the Hiber modem
 void setDebugSerial(Stream* stream);

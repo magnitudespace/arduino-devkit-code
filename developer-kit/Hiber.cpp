@@ -26,6 +26,16 @@ String getHex(char x)
   return ret;
 }
 
+void flushInput(Stream *stream, Stream *debug)
+{
+    while (stream->available()) {
+        byte c = stream->read();
+        if (debug_io) {
+            debug->write(c);
+        }
+    }
+}
+
 String readln(Stream *stream)
 {
   String tmp = "";
@@ -114,6 +124,7 @@ void Hiber::sendCommandFinish()
 
   last_command += "\r\n";
 
+    flushInput(serial_port, debug_port);
   writeString(last_command);
   command_with_arguments = false;
 }
