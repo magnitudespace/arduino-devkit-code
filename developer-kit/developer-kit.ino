@@ -1,6 +1,8 @@
 // This is an example project.
 
+#if defined(ARDUINO_ARCH_AVR)
 #include <avr/wdt.h>
+#endif
 #include "Hiber.h"
 
 #define SERIAL_HIBER Serial2
